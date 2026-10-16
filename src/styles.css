@@ -1,0 +1,302 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * TenderTrap design system — "Procurement Intelligence Studio".
+ * Porcelain/paper/obsidian carry the composition; Merlot is used sparingly.
+ * Status colours (met / unknown / unmet) are semantic only.
+ */
+
+@theme inline {
+  --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-wine: var(--wine);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-met: var(--met);
+  --color-met-ink: var(--met-ink);
+  --color-unknown: var(--unknown);
+  --color-unknown-ink: var(--unknown-ink);
+  --color-unmet: var(--unmet);
+  --color-unmet-ink: var(--unmet-ink);
+}
+
+:root {
+  --radius: 0.25rem;
+  --background: oklch(0.962 0.006 100); /* porcelain */
+  --paper: oklch(0.988 0.004 90);
+  --foreground: oklch(0.25 0.007 150); /* obsidian */
+  --card: oklch(0.988 0.004 90);
+  --card-foreground: oklch(0.25 0.007 150);
+  --popover: oklch(0.988 0.004 90);
+  --popover-foreground: oklch(0.25 0.007 150);
+  --primary: oklch(0.44 0.105 8); /* merlot */
+  --primary-foreground: oklch(0.988 0.004 90);
+  --wine: oklch(0.6 0.075 5);
+  --secondary: oklch(0.93 0.008 110);
+  --secondary-foreground: oklch(0.25 0.007 150);
+  --muted: oklch(0.93 0.008 110);
+  --muted-foreground: oklch(0.54 0.012 135); /* slate */
+  --accent: oklch(0.93 0.008 110);
+  --accent-foreground: oklch(0.25 0.007 150);
+  --destructive: oklch(0.44 0.105 8);
+  --destructive-foreground: oklch(0.988 0.004 90);
+  --border: oklch(0.885 0.01 115); /* mineral */
+  --input: oklch(0.86 0.01 115);
+  --ring: oklch(0.44 0.105 8);
+
+  --ink: oklch(0.21 0.006 150); /* deep charcoal */
+  --ink-foreground: oklch(0.95 0.006 100);
+  --ink-soft: oklch(0.27 0.008 150);
+  --ink-muted: oklch(0.68 0.01 130);
+
+  --met: oklch(0.925 0.017 125);
+  --met-ink: oklch(0.42 0.06 140);
+  --unknown: oklch(0.925 0.03 85);
+  --unknown-ink: oklch(0.47 0.075 70);
+  --unmet: oklch(0.91 0.025 10);
+  --unmet-ink: oklch(0.44 0.105 8);
+
+  --ease-precise: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--unmet);
+  }
+}
+
+/* ---------- Layout & type utilities ---------- */
+@utility shell {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: 20px;
+  @media (width >= 768px) {
+    padding-inline: 32px;
+  }
+  @media (width >= 1024px) {
+    padding-inline: 64px;
+  }
+}
+@utility meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+@utility display-xl {
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 7vw, 6.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  font-weight: 600;
+}
+@utility display-lg {
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 4.6vw, 4rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+}
+@utility display-md {
+  font-family: var(--font-display);
+  font-size: clamp(1.875rem, 3vw, 2.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+@utility rule {
+  border-top: 1px solid var(--color-border);
+}
+
+/* ---------- Motion ---------- */
+@keyframes tt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tt-mask {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes tt-line {
+  from {
+    transform: translateY(105%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes tt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes tt-draw {
+  from {
+    stroke-dashoffset: var(--len, 200);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes tt-scan {
+  0% {
+    transform: translateX(-4%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(var(--scan-to, 100%));
+    opacity: 0;
+  }
+}
+@keyframes tt-highlight {
+  from {
+    background-size: 0% 100%;
+  }
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+@utility anim-rise {
+  animation: tt-rise 0.8s var(--ease-precise) both;
+  animation-delay: var(--d, 0ms);
+}
+@utility anim-fade {
+  animation: tt-fade 0.7s ease both;
+  animation-delay: var(--d, 0ms);
+}
+@utility anim-mask {
+  animation: tt-mask 1.1s var(--ease-precise) both;
+  animation-delay: var(--d, 0ms);
+}
+@utility line-mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+  & > span {
+    display: block;
+    animation: tt-line 0.9s var(--ease-precise) both;
+    animation-delay: var(--d, 0ms);
+  }
+}
+@utility draw {
+  stroke-dasharray: var(--len, 200);
+  animation: tt-draw 0.9s var(--ease-precise) both;
+  animation-delay: var(--d, 0ms);
+}
+@utility clause-mark {
+  background-image: linear-gradient(var(--unmet), var(--unmet));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  animation: tt-highlight 0.8s var(--ease-precise) both;
+  animation-delay: var(--d, 0ms);
+}
+@utility scan-beam {
+  animation: tt-scan 1.4s var(--ease-precise) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Scroll reveal: only hidden when scripting is available */
+@media (scripting: enabled) {
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity 0.8s var(--ease-precise),
+      transform 0.8s var(--ease-precise);
+    transition-delay: var(--d, 0ms);
+  }
+  [data-reveal="in"] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
