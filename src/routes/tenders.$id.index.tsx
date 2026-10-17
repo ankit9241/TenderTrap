@@ -14,11 +14,106 @@ function Overview() {
   const { id } = Route.useParams();
   const a = useAssessment(id);
   if (!a) return null;
-  const d = decide(a.requirements);
+  const d = decide(a.requirements, { documentType: a.documentType });
   const actionsList = [...d.blockers, ...d.unresolved, ...d.gaps].filter((r, i, arr) => arr.findIndex((x) => x.id === r.id) === i).slice(0, 4);
 
   return (
     <div className="shell py-14 md:py-20">
+      {/* Coverage & Extraction Warnings Banner */}
+      {((a.unprocessedPages && a.unprocessedPages.length > 0) || (a.warnings && a.warnings.length > 0)) && (
+        <div className="mb-8 rounded border-l-4 border-unmet-ink bg-unmet/20 p-5">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-foreground">
+                Document Coverage Notice: Partially Analyzed ({a.analyzedPageCount ?? 15} of {a.pageCount ?? 157} Pages Processed)
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This document was not analyzed in full. Extracted criteria and findings apply only to the processed pages. Unprocessed pages may contain additional eligibility criteria, deadlines, or penalty clauses.
+            </p>
+            {a.unprocessedPages && a.unprocessedPages.length > 0 && (
+              <div className="mt-3 border-t border-border/50 pt-2 text-xs">
+                <span className="font-medium text-foreground">
+                  Unprocessed Pages ({a.unprocessedPages.length}):{" "}
+                </span>
+                <span className="font-mono text-muted-foreground">
+                  {a.unprocessedPages.length <= 20
+                    ? a.unprocessedPages.join(", ")
+                    : `Pages ${a.unprocessedPages[0]}–${a.unprocessedPages[a.unprocessedPages.length - 1]} (${a.unprocessedPages.slice(0, 10).join(", ")} ... and ${a.unprocessedPages.length - 10} more)`}
+                </span>
+                <p className="mt-1 text-muted-foreground">
+                  Reason: Document consists of scanned/image-only pages. Processing halted at the safety limit of {a.analyzedPageCount ?? 15} OCR pages.
+                </p>
+              </div>
+            )}
+            {a.warnings && a.warnings.length > 0 && (
+              <div className="mt-3 border-t border-border/50 pt-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Extraction Warnings ({a.warnings.length}):
+                </p>
+                <ul className="mt-1 list-disc pl-4 space-y-1 text-xs text-muted-foreground">
+                  {a.warnings.map((w, idx) => (
+                    <li key={idx}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {a.documentType && a.documentType !== "tender_notice" && (
+        <div className="mb-10 rounded border-l-4 border-unknown-ink bg-unknown/20 p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-semibold text-foreground">
+                Document Notice: {a.documentType === "circular_or_policy"
+                  ? "Administrative Circular / Policy Clarification"
+                  : a.documentType === "contract_conditions"
+                  ? "Standard Contract Conditions / Works Manual"
+                  : a.documentType === "mixed_compilation"
+                  ? "Mixed Compilation of Multiple Documents"
+                  : a.documentType === "amendment_or_corrigendum"
+                  ? "Corrigendum / Amendment Notice"
+                  : "Unclassified Document"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This document is not an active tender notice. Extracted criteria represent policy clarifications, administrative rules, or general conditions of contract. Eligibility recommendations reflect general policy compliance, not a confirmed tender qualification decision.
+              </p>
+              {a.sections && a.sections.length > 1 && (
+                <div className="mt-4 border-t border-border/50 pt-3">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Detected Sections ({a.sections.length}):
+                  </p>
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {a.sections.map((sec) => (
+                      <li key={sec.id} className="flex gap-2">
+                        <span className="font-mono text-foreground">Pages {sec.pageRange[0]}–{sec.pageRange[1]}:</span>
+                        <span>{sec.title} ({sec.documentType.replace(/_/g, " ")})</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {a.contractualDurations && a.contractualDurations.length > 0 && (
+                <div className="mt-4 border-t border-border/50 pt-3">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Contractual Durations & Guarantee Validity (Not Bid Deadlines):
+                  </p>
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {a.contractualDurations.map((cd, i) => (
+                      <li key={i}>
+                        <span className="font-medium text-foreground">{cd.description}:</span> {cd.duration}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:items-end">
         <div className="anim-rise">
           <Eyebrow>Current recommendation{d.incomplete ? " · assessment incomplete" : ""}</Eyebrow>

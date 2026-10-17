@@ -14,8 +14,15 @@ import { Route as CompanyRouteImport } from './routes/company'
 import { Route as EvidenceStandardRouteImport } from './routes/evidence-standard'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
+import { Route as ApiCompanyRouteImport } from './routes/api.company'
+import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as TendersIdRouteImport } from './routes/tenders.$id'
 import { Route as TendersNewRouteImport } from './routes/tenders.new'
+import { Route as ApiAssessmentsIndexRouteImport } from './routes/api.assessments.index'
+import { Route as ApiAssessmentsIdRouteImport } from './routes/api.assessments.$id'
+import { Route as ApiHealthDbRouteImport } from './routes/api.health.db'
+import { Route as ApiTendersAnalyzeRouteImport } from './routes/api.tenders.analyze'
+import { Route as ApiTendersExtractRouteImport } from './routes/api.tenders.extract'
 import { Route as TendersIdIndexRouteImport } from './routes/tenders.$id.index'
 import { Route as TendersIdDocumentsRouteImport } from './routes/tenders.$id.documents'
 import { Route as TendersIdRequirementsRouteImport } from './routes/tenders.$id.requirements'
@@ -45,6 +52,16 @@ const WorkspaceRoute = WorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCompanyRoute = ApiCompanyRouteImport.update({
+  id: '/api/company',
+  path: '/api/company',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TendersIdRoute = TendersIdRouteImport.update({
   id: '/tenders/$id',
   path: '/tenders/$id',
@@ -53,6 +70,31 @@ const TendersIdRoute = TendersIdRouteImport.update({
 const TendersNewRoute = TendersNewRouteImport.update({
   id: '/tenders/new',
   path: '/tenders/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAssessmentsIndexRoute = ApiAssessmentsIndexRouteImport.update({
+  id: '/api/assessments/',
+  path: '/api/assessments/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAssessmentsIdRoute = ApiAssessmentsIdRouteImport.update({
+  id: '/api/assessments/$id',
+  path: '/api/assessments/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthDbRoute = ApiHealthDbRouteImport.update({
+  id: '/db',
+  path: '/db',
+  getParentRoute: () => ApiHealthRoute,
+} as any)
+const ApiTendersAnalyzeRoute = ApiTendersAnalyzeRouteImport.update({
+  id: '/api/tenders/analyze',
+  path: '/api/tenders/analyze',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTendersExtractRoute = ApiTendersExtractRouteImport.update({
+  id: '/api/tenders/extract',
+  path: '/api/tenders/extract',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TendersIdIndexRoute = TendersIdIndexRouteImport.update({
@@ -77,10 +119,17 @@ export interface FileRoutesByFullPath {
   '/evidence-standard': typeof EvidenceStandardRoute
   '/how-it-works': typeof HowItWorksRoute
   '/workspace': typeof WorkspaceRoute
+  '/api/company': typeof ApiCompanyRoute
+  '/api/health': typeof ApiHealthRouteWithChildren
   '/tenders/$id': typeof TendersIdRouteWithChildren
   '/tenders/new': typeof TendersNewRoute
+  '/api/assessments/$id': typeof ApiAssessmentsIdRoute
+  '/api/health/db': typeof ApiHealthDbRoute
+  '/api/tenders/analyze': typeof ApiTendersAnalyzeRoute
+  '/api/tenders/extract': typeof ApiTendersExtractRoute
   '/tenders/$id/documents': typeof TendersIdDocumentsRoute
   '/tenders/$id/requirements': typeof TendersIdRequirementsRoute
+  '/api/assessments/': typeof ApiAssessmentsIndexRoute
   '/tenders/$id/': typeof TendersIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -89,9 +138,16 @@ export interface FileRoutesByTo {
   '/evidence-standard': typeof EvidenceStandardRoute
   '/how-it-works': typeof HowItWorksRoute
   '/workspace': typeof WorkspaceRoute
+  '/api/company': typeof ApiCompanyRoute
+  '/api/health': typeof ApiHealthRouteWithChildren
   '/tenders/new': typeof TendersNewRoute
+  '/api/assessments/$id': typeof ApiAssessmentsIdRoute
+  '/api/health/db': typeof ApiHealthDbRoute
+  '/api/tenders/analyze': typeof ApiTendersAnalyzeRoute
+  '/api/tenders/extract': typeof ApiTendersExtractRoute
   '/tenders/$id/documents': typeof TendersIdDocumentsRoute
   '/tenders/$id/requirements': typeof TendersIdRequirementsRoute
+  '/api/assessments': typeof ApiAssessmentsIndexRoute
   '/tenders/$id': typeof TendersIdIndexRoute
 }
 export interface FileRoutesById {
@@ -101,10 +157,17 @@ export interface FileRoutesById {
   '/evidence-standard': typeof EvidenceStandardRoute
   '/how-it-works': typeof HowItWorksRoute
   '/workspace': typeof WorkspaceRoute
+  '/api/company': typeof ApiCompanyRoute
+  '/api/health': typeof ApiHealthRouteWithChildren
   '/tenders/$id': typeof TendersIdRouteWithChildren
   '/tenders/new': typeof TendersNewRoute
+  '/api/assessments/$id': typeof ApiAssessmentsIdRoute
+  '/api/health/db': typeof ApiHealthDbRoute
+  '/api/tenders/analyze': typeof ApiTendersAnalyzeRoute
+  '/api/tenders/extract': typeof ApiTendersExtractRoute
   '/tenders/$id/documents': typeof TendersIdDocumentsRoute
   '/tenders/$id/requirements': typeof TendersIdRequirementsRoute
+  '/api/assessments/': typeof ApiAssessmentsIndexRoute
   '/tenders/$id/': typeof TendersIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -115,10 +178,17 @@ export interface FileRouteTypes {
     | '/evidence-standard'
     | '/how-it-works'
     | '/workspace'
+    | '/api/company'
+    | '/api/health'
     | '/tenders/$id'
     | '/tenders/new'
+    | '/api/assessments/$id'
+    | '/api/health/db'
+    | '/api/tenders/analyze'
+    | '/api/tenders/extract'
     | '/tenders/$id/documents'
     | '/tenders/$id/requirements'
+    | '/api/assessments/'
     | '/tenders/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -127,9 +197,16 @@ export interface FileRouteTypes {
     | '/evidence-standard'
     | '/how-it-works'
     | '/workspace'
+    | '/api/company'
+    | '/api/health'
     | '/tenders/new'
+    | '/api/assessments/$id'
+    | '/api/health/db'
+    | '/api/tenders/analyze'
+    | '/api/tenders/extract'
     | '/tenders/$id/documents'
     | '/tenders/$id/requirements'
+    | '/api/assessments'
     | '/tenders/$id'
   id:
     | '__root__'
@@ -138,10 +215,17 @@ export interface FileRouteTypes {
     | '/evidence-standard'
     | '/how-it-works'
     | '/workspace'
+    | '/api/company'
+    | '/api/health'
     | '/tenders/$id'
     | '/tenders/new'
+    | '/api/assessments/$id'
+    | '/api/health/db'
+    | '/api/tenders/analyze'
+    | '/api/tenders/extract'
     | '/tenders/$id/documents'
     | '/tenders/$id/requirements'
+    | '/api/assessments/'
     | '/tenders/$id/'
   fileRoutesById: FileRoutesById
 }
@@ -151,8 +235,14 @@ export interface RootRouteChildren {
   EvidenceStandardRoute: typeof EvidenceStandardRoute
   HowItWorksRoute: typeof HowItWorksRoute
   WorkspaceRoute: typeof WorkspaceRoute
+  ApiCompanyRoute: typeof ApiCompanyRoute
+  ApiHealthRoute: typeof ApiHealthRouteWithChildren
   TendersIdRoute: typeof TendersIdRouteWithChildren
   TendersNewRoute: typeof TendersNewRoute
+  ApiAssessmentsIdRoute: typeof ApiAssessmentsIdRoute
+  ApiTendersAnalyzeRoute: typeof ApiTendersAnalyzeRoute
+  ApiTendersExtractRoute: typeof ApiTendersExtractRoute
+  ApiAssessmentsIndexRoute: typeof ApiAssessmentsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -192,6 +282,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/company': {
+      id: '/api/company'
+      path: '/api/company'
+      fullPath: '/api/company'
+      preLoaderRoute: typeof ApiCompanyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tenders/$id': {
       id: '/tenders/$id'
       path: '/tenders/$id'
@@ -204,6 +308,41 @@ declare module '@tanstack/react-router' {
       path: '/tenders/new'
       fullPath: '/tenders/new'
       preLoaderRoute: typeof TendersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/assessments/': {
+      id: '/api/assessments/'
+      path: '/api/assessments'
+      fullPath: '/api/assessments/'
+      preLoaderRoute: typeof ApiAssessmentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/assessments/$id': {
+      id: '/api/assessments/$id'
+      path: '/api/assessments/$id'
+      fullPath: '/api/assessments/$id'
+      preLoaderRoute: typeof ApiAssessmentsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/db': {
+      id: '/api/health/db'
+      path: '/db'
+      fullPath: '/api/health/db'
+      preLoaderRoute: typeof ApiHealthDbRouteImport
+      parentRoute: typeof ApiHealthRoute
+    }
+    '/api/tenders/analyze': {
+      id: '/api/tenders/analyze'
+      path: '/api/tenders/analyze'
+      fullPath: '/api/tenders/analyze'
+      preLoaderRoute: typeof ApiTendersAnalyzeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tenders/extract': {
+      id: '/api/tenders/extract'
+      path: '/api/tenders/extract'
+      fullPath: '/api/tenders/extract'
+      preLoaderRoute: typeof ApiTendersExtractRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tenders/$id/': {
@@ -230,6 +369,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ApiHealthRouteChildren {
+  ApiHealthDbRoute: typeof ApiHealthDbRoute
+}
+
+const ApiHealthRouteChildren: ApiHealthRouteChildren = {
+  ApiHealthDbRoute: ApiHealthDbRoute,
+}
+
+const ApiHealthRouteWithChildren = ApiHealthRoute._addFileChildren(
+  ApiHealthRouteChildren,
+)
+
 interface TendersIdRouteChildren {
   TendersIdDocumentsRoute: typeof TendersIdDocumentsRoute
   TendersIdRequirementsRoute: typeof TendersIdRequirementsRoute
@@ -252,8 +403,14 @@ const rootRouteChildren: RootRouteChildren = {
   EvidenceStandardRoute: EvidenceStandardRoute,
   HowItWorksRoute: HowItWorksRoute,
   WorkspaceRoute: WorkspaceRoute,
+  ApiCompanyRoute: ApiCompanyRoute,
+  ApiHealthRoute: ApiHealthRouteWithChildren,
   TendersIdRoute: TendersIdRouteWithChildren,
   TendersNewRoute: TendersNewRoute,
+  ApiAssessmentsIdRoute: ApiAssessmentsIdRoute,
+  ApiTendersAnalyzeRoute: ApiTendersAnalyzeRoute,
+  ApiTendersExtractRoute: ApiTendersExtractRoute,
+  ApiAssessmentsIndexRoute: ApiAssessmentsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

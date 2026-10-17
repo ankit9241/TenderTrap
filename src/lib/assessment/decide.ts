@@ -1,4 +1,4 @@
-import type { Recommendation, RequirementStatus, TenderRequirement } from "@/types/tender";
+import type { DocumentType, Recommendation, RequirementStatus, TenderRequirement } from "@/types/tender";
 
 /** Status after human review. A rejected finding is no longer trusted, so it becomes UNKNOWN. */
 export function effectiveStatus(r: TenderRequirement): RequirementStatus {
@@ -8,6 +8,10 @@ export function effectiveStatus(r: TenderRequirement): RequirementStatus {
 export function needsReview(r: TenderRequirement): boolean {
   if (r.review === "flagged" || r.review === "rejected") return true;
   return r.requiresHumanReview && r.review !== "confirmed";
+}
+
+export interface DecisionOptions {
+  documentType?: DocumentType | undefined;
 }
 
 export interface Decision {
@@ -23,10 +27,10 @@ export interface Decision {
 /**
  * Deterministic rules — the model never decides eligibility:
  * - SKIP: a mandatory requirement is UNMET and that finding was not disputed.
- * - INVESTIGATE: any evidence gap (UNKNOWN) or clause needing human review.
- * - PROCEED: no known blocker among reviewed requirements (not a guarantee).
+ * - INVESTIGATE: any evidence gap (UNKNOWN), clause needing human review, or non-tender document (circular, contract manual, compilation).
+ * - PROCEED: no known blocker among reviewed requirements (only for actual tender notices; not a guarantee).
  */
-export function decide(requirements: TenderRequirement[]): Decision {
+export function decide(requirements: TenderRequirement[], options?: DecisionOptions): Decision {
   const blockers = requirements.filter(
     (r) => r.mandatory === true && effectiveStatus(r) === "UNMET",
   );
@@ -48,9 +52,36 @@ export function decide(requirements: TenderRequirement[]): Decision {
 
   let recommendation: Recommendation;
   let summary: string;
+
   if (blockers.length > 0) {
     recommendation = "SKIP";
     summary = `${count(blockers.length, "mandatory requirement")} not met based on the evidence provided.`;
+  } else if (options?.documentType && options.documentType !== "tender_notice") {
+    // Non-tender document: policy circular, contract conditions, compilation, or unknown.
+    // Avoid presenting the result as confirmed bid eligibility (PROCEED).
+    recommendation = "INVESTIGATE";
+    switch (options.documentType) {
+      case "circular_or_policy":
+        summary =
+          "Document is an administrative circular or policy clarification, not an active tender notice. Extracted clauses represent general guidelines; bid eligibility cannot be confirmed.";
+        break;
+      case "contract_conditions":
+        summary =
+          "Document contains general conditions of contract (GCC) or works manual clauses, not an active tender notice. Extracted clauses represent contractual obligations if awarded.";
+        break;
+      case "mixed_compilation":
+        summary =
+          "Document is a mixed compilation of circulars or contract conditions across multiple sections. It is not an individual tender notice; bid eligibility cannot be confirmed.";
+        break;
+      case "amendment_or_corrigendum":
+        summary =
+          "Document is a corrigendum or amendment notice modifying previous terms. Review in conjunction with the original tender notice.";
+        break;
+      default:
+        summary =
+          "Document type could not be reliably verified as an active tender notice. Human review required before determining bid eligibility.";
+        break;
+    }
   } else if (gaps.length > 0 || unresolved.length > 0) {
     recommendation = "INVESTIGATE";
     const n = new Set([...gaps, ...unresolved].map((r) => r.id)).size;

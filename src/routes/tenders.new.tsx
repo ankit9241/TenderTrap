@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef, useState, type DragEvent } from "react";
 import { AppPage } from "@/components/layout/Chrome";
-import { Button, Eyebrow } from "@/components/ui-tt/primitives";
+import { action, Button, Eyebrow } from "@/components/ui-tt/primitives";
 import { TenderTrapLoader } from "@/components/brand/TenderTrapLoader";
-import { API_BASE, extractTender, validatePdf } from "@/lib/api";
+import { API_BASE, analyzeTender, validatePdf } from "@/lib/api";
+import { linkRequirementsToDocument, matchRequirements } from "@/lib/assessment/match";
 import { actions, uid, useStore } from "@/lib/store";
 import { buildDemoAssessment, snapshotEvidence } from "@/data/demo";
 import { cn } from "@/lib/utils";
@@ -58,27 +59,61 @@ function NewTender() {
     setBusy(true);
     setError(null);
     try {
-      const requirements = await extractTender(file);
-      const id = uid("as");
-      const now = new Date().toISOString();
+      const analysis = await analyzeTender(file);
+      const docType = analysis.metadata?.documentType || analysis.documentType || "unknown";
+      const sections = analysis.metadata?.sections || analysis.sections || [];
+      const contractualDurations = analysis.metadata?.contractualDurations || analysis.contractualDurations || [];
+      const effectiveDeadline = meta.deadline || analysis.metadata?.bidSubmissionDeadline || analysis.metadata?.deadline || null;
+      const matchedRequirements = matchRequirements(
+        analysis.requirements,
+        company,
+        { tenderDeadline: effectiveDeadline }
+      );
+      const isPartial =
+        analysis.extractionStatus === "partial_ocr" ||
+        ((analysis.unprocessedPages?.length ?? 0) > 0);
+      const docNote = isPartial
+        ? `Partially analyzed: ${analysis.analyzedPageCount ?? 15} of ${analysis.pageCount ?? 157} pages processed. ${analysis.unprocessedPages?.length ?? 0} pages were not analyzed.`
+        : undefined;
+
+      const doc = {
+        id: `${id}-doc`,
+        filename: file.name,
+        kind: "tender" as const,
+        sizeBytes: file.size,
+        status: (isPartial ? "mapping_incomplete" : "ready") as const,
+        sourceType: "user_upload" as const,
+        note: docNote,
+      };
+      const linkedRequirements = linkRequirementsToDocument(matchedRequirements, doc);
       actions.addAssessment({
         id,
         demo: false,
-        title: meta.title || file.name.replace(/\.pdf$/i, ""),
-        reference: meta.reference || "Reference not provided",
-        authority: meta.authority || "Not specified",
-        procurementSource: meta.procurementSource || "User upload",
-        deadline: meta.deadline || null,
+        title: meta.title || analysis.metadata?.title || file.name.replace(/\.pdf$/i, ""),
+        reference: meta.reference || analysis.metadata?.reference || "Reference not provided",
+        authority: meta.authority || analysis.metadata?.authority || "Not specified",
+        procurementSource: meta.procurementSource || analysis.metadata?.procurementSource || "User upload",
+        deadline: effectiveDeadline,
+        bidSubmissionDeadline: effectiveDeadline,
+        documentType: docType,
+        sections,
+        contractualDurations,
+        emdAmount: analysis.metadata?.emdAmount || undefined,
         companyId: company.id,
         evidenceSnapshot: snapshotEvidence(company),
-        documents: [{ id: `${id}-doc`, filename: file.name, kind: "tender", sizeBytes: file.size, status: "ready", sourceType: "user_upload" }],
-        requirements,
+        documents: [doc],
+        requirements: linkedRequirements,
+        pageCount: analysis.pageCount,
+        analyzedPageCount: analysis.analyzedPageCount,
+        unprocessedPages: analysis.unprocessedPages,
+        warnings: analysis.warnings,
+        extractionStatus: analysis.extractionStatus,
         createdAt: now,
         updatedAt: now,
       });
       navigate({ to: "/tenders/$id", params: { id } });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Extraction failed. Your file was not analysed.");
+      setError(e instanceof Error ? e.message : "Analysis failed. Your file was not analysed.");
     } finally {
       setBusy(false);
     }
@@ -131,26 +166,54 @@ function NewTender() {
                 <p className="meta text-muted-foreground">Selected tender</p>
                 <p className="mt-2 break-all font-display text-xl">{file.name}</p>
                 <p className="meta mt-1 text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB · PDF</p>
-                <div className="mt-6 flex gap-4">
-                  <Button variant="quiet" size="sm" onClick={() => input.current?.click()}>Replace</Button>
-                  <Button variant="ghost" size="sm" onClick={() => setFile(null)}>Remove</Button>
+                <div className="mt-6 flex gap-4 items-center">
+                  <label htmlFor="tender-file" className={cn(action({ variant: "quiet", size: "sm" }), "cursor-pointer")}>
+                    Replace
+                  </label>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setFile(null)}>Remove</Button>
                 </div>
               </div>
             ) : (
               <>
                 <p className="font-display text-xl">Drop a tender PDF here</p>
                 <p className="mt-2 text-sm text-muted-foreground">One file · up to 25 MB</p>
-                <Button variant="quiet" className="mt-6" onClick={() => input.current?.click()}>Choose file</Button>
+                <div className="mt-6 flex flex-col items-center gap-3">
+                  <label htmlFor="tender-file" className={cn(action({ variant: "quiet" }), "cursor-pointer")}>
+                    Choose file
+                  </label>
+                  <button
+                    id="load-fixture-tendernotice1"
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/fixtures/Tendernotice_1.pdf");
+                        const blob = await res.blob();
+                        const f = new File([blob], "Tendernotice_1.pdf", { type: "application/pdf" });
+                        void pick(f);
+                      } catch {
+                        setError("Could not load Tendernotice_1.pdf fixture.");
+                      }
+                    }}
+                    className="meta text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  >
+                    Load 157-page Tendernotice_1.pdf
+                  </button>
+                </div>
               </>
             )}
-            <label className="sr-only" htmlFor="tender-file">Tender PDF</label>
             <input
               id="tender-file"
               ref={input}
               type="file"
               accept="application/pdf,.pdf"
               className="sr-only"
-              onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }}
+              onClick={(e) => { (e.target as HTMLInputElement).value = ""; }}
+              onChange={(e) => {
+                const selected = e.target.files?.[0];
+                if (selected) {
+                  void pick(selected);
+                }
+              }}
             />
           </div>
           {error && <p role="alert" className="anim-rise mt-4 border-l-2 border-primary pl-4 text-sm text-unmet-ink">{error}</p>}

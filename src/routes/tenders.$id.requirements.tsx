@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { effectiveStatus, needsReview } from "@/lib/assessment/decide";
+import { isRequirementLinkedToDocument } from "@/lib/assessment/match";
 import { actions } from "@/lib/store";
 import { Button, StatusTag, formatStamp } from "@/components/ui-tt/primitives";
 import { useAssessment } from "@/lib/store";
@@ -14,13 +15,13 @@ export const Route = createFileRoute("/tenders/$id/requirements")({
   component: Register,
 });
 
-const filterDefs: { key: Filter; label: string; test: (r: TenderRequirement) => boolean }[] = [
-  { key: "all", label: "All", test: () => true },
-  { key: "MET", label: "Met", test: (r) => effectiveStatus(r) === "MET" },
-  { key: "UNMET", label: "Unmet", test: (r) => effectiveStatus(r) === "UNMET" },
-  { key: "UNKNOWN", label: "Unknown", test: (r) => effectiveStatus(r) === "UNKNOWN" },
-  { key: "mandatory", label: "Mandatory", test: (r) => r.mandatory === true },
-  { key: "review", label: "Needs review", test: needsReview },
+const filterDefs: { key: Filter; label: string; group: "status" | "scope"; test: (r: TenderRequirement) => boolean }[] = [
+  { key: "all", label: "All", group: "status", test: () => true },
+  { key: "MET", label: "Met", group: "status", test: (r) => effectiveStatus(r) === "MET" },
+  { key: "UNMET", label: "Unmet", group: "status", test: (r) => effectiveStatus(r) === "UNMET" },
+  { key: "UNKNOWN", label: "Unknown", group: "status", test: (r) => effectiveStatus(r) === "UNKNOWN" },
+  { key: "mandatory", label: "Mandatory only", group: "scope", test: (r) => r.mandatory === true },
+  { key: "review", label: "Needs review", group: "scope", test: needsReview },
 ];
 
 function Register() {
@@ -47,11 +48,36 @@ function Register() {
   const selected = a.requirements.find((r) => r.id === selectedId) ?? (selectedId ? undefined : list[0]);
   const select = (rid?: string) => navigate({ search: rid ? { r: rid } : {}, replace: true });
 
+  const total = a.requirements.length;
+  const metCount = a.requirements.filter((r) => effectiveStatus(r) === "MET").length;
+  const unmetCount = a.requirements.filter((r) => effectiveStatus(r) === "UNMET").length;
+  const unknownCount = a.requirements.filter((r) => effectiveStatus(r) === "UNKNOWN").length;
+
+  const statusFilters = filterDefs.filter((f) => f.group === "status");
+  const scopeFilters = filterDefs.filter((f) => f.group === "scope");
+
   return (
     <div className="shell py-10 md:py-14">
+      {/* Truthful status summary banner */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4 text-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-medium text-foreground">{total} total criteria:</span>
+          <span className="font-medium text-met-ink">{metCount} Met</span>
+          <span className="text-muted-foreground">·</span>
+          <span className="font-medium text-unmet-ink">{unmetCount} Unmet</span>
+          <span className="text-muted-foreground">·</span>
+          <span className="font-medium text-unknown-ink">{unknownCount} Unknown</span>
+        </div>
+        <p className="meta text-muted-foreground">
+          UNKNOWN criteria require evidence and never count as MET.
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Filter requirements">
-          {filterDefs.map((f) => (
+        {/* Verification Status filters */}
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Verification status filters">
+          <span className="meta mr-1 text-muted-foreground">Status:</span>
+          {statusFilters.map((f) => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
@@ -65,6 +91,25 @@ function Register() {
             </button>
           ))}
         </div>
+
+        {/* Scope / Facet filters */}
+        <div className="flex flex-wrap items-center gap-1.5 border-l border-border pl-4" role="group" aria-label="Scope filters">
+          <span className="meta mr-1 text-muted-foreground">Scope:</span>
+          {scopeFilters.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              aria-pressed={filter === f.key}
+              className={cn(
+                "min-h-9 border px-3 text-[13px] transition-colors",
+                filter === f.key ? "border-foreground bg-foreground text-background" : "border-border hover:border-foreground",
+              )}
+            >
+              {f.label} <span className="meta ml-1 opacity-70">{a.requirements.filter(f.test).length}</span>
+            </button>
+          ))}
+        </div>
+
         <label className="ml-auto w-full sm:w-72">
           <span className="sr-only">Search requirements</span>
           <input
@@ -92,7 +137,7 @@ function Register() {
                   <span className="min-w-0 flex-1">
                     <span className="block text-[15px] font-medium">{r.title}</span>
                     <span className="meta mt-1.5 block text-muted-foreground">
-                      {r.category} · {r.mandatory === true ? "mandatory" : r.mandatory === false ? "optional" : "mandatory unclear"} ·{" "}
+                      {r.sectionTitle ? `${r.sectionTitle} · ` : ""}{r.category} · {r.mandatory === true ? "mandatory" : r.mandatory === false ? "optional" : "mandatory unclear"} ·{" "}
                       {r.source ? `p. ${r.source.pageNumber ?? "?"}${r.source.clauseNumber ? ` cl. ${r.source.clauseNumber}` : ""}` : "source unverified"}
                     </span>
                   </span>
@@ -124,7 +169,7 @@ const reviewLabels: Record<ReviewState, string> = {
 };
 
 function Detail({ a, r, onBack }: { a: Assessment; r: TenderRequirement; onBack: () => void }) {
-  const doc = a.documents.find((d) => d.id === r.source?.documentId);
+  const doc = a.documents.find((d) => isRequirementLinkedToDocument(r, d));
   const evidence = a.evidenceSnapshot.filter((e) => r.matchedEvidenceIds.includes(e.id));
   const setReview = (s: ReviewState) => actions.review(a.id, r.id, s);
 
@@ -153,6 +198,7 @@ function Detail({ a, r, onBack }: { a: Assessment; r: TenderRequirement; onBack:
           <p className="meta">
             {doc?.filename ?? "Unknown document"} · page {r.source.pageNumber ?? "not identified"}
             {r.source.clauseNumber && ` · clause ${r.source.clauseNumber}`}
+            {r.sectionTitle && ` · section: ${r.sectionTitle}`}
           </p>
         ) : (
           <p className="meta text-unknown-ink">Source not confirmed</p>

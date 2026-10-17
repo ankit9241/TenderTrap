@@ -42,4 +42,29 @@ describe("decide", () => {
     expect(d.incomplete).toBe(true);
     expect(d.recommendation).toBeNull();
   });
+  it("non-tender documents (circular, contract conditions, compilation) return INVESTIGATE, never PROCEED", () => {
+    // Even if all requirements are MET, circulars/GCC must not claim tender eligibility
+    const reqs = [req({ status: "MET" }), req({ status: "MET" })];
+
+    const circDecision = decide(reqs, { documentType: "circular_or_policy" });
+    expect(circDecision.recommendation).toBe("INVESTIGATE");
+    expect(circDecision.summary).toContain("administrative circular or policy clarification");
+
+    const gccDecision = decide(reqs, { documentType: "contract_conditions" });
+    expect(gccDecision.recommendation).toBe("INVESTIGATE");
+    expect(gccDecision.summary).toContain("general conditions of contract");
+
+    const compDecision = decide(reqs, { documentType: "mixed_compilation" });
+    expect(compDecision.recommendation).toBe("INVESTIGATE");
+    expect(compDecision.summary).toContain("mixed compilation");
+
+    // Mandatory UNMET blocker still produces SKIP
+    const blockerReqs = [req({ status: "UNMET", mandatory: true })];
+    const blockedCirc = decide(blockerReqs, { documentType: "circular_or_policy" });
+    expect(blockedCirc.recommendation).toBe("SKIP");
+
+    // Genuine tender notice allows PROCEED
+    const tenderDecision = decide(reqs, { documentType: "tender_notice" });
+    expect(tenderDecision.recommendation).toBe("PROCEED");
+  });
 });

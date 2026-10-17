@@ -6,13 +6,15 @@ import { demoCompany } from "@/data/demo";
  * Local demo store (browser localStorage). Clearly a development store —
  * replace with the backend API when persistence is connected.
  */
+import { sampleTendernoticeAssessment } from "@/data/tenderNoticeAssessment";
+
 interface State {
   assessments: Assessment[];
   company: CompanyProfile;
 }
 
 const KEY = "tendertrap.v1";
-const initial: State = { assessments: [], company: demoCompany };
+const initial: State = { assessments: [sampleTendernoticeAssessment], company: demoCompany };
 let state: State = initial;
 let loaded = false;
 const listeners = new Set<() => void>();
@@ -22,7 +24,17 @@ function load() {
   loaded = true;
   try {
     const raw = window.localStorage.getItem(KEY);
-    if (raw) state = { ...initial, ...(JSON.parse(raw) as State) };
+    if (raw) {
+      const parsed = JSON.parse(raw) as State;
+      state = {
+        ...initial,
+        ...parsed,
+        assessments:
+          parsed.assessments && parsed.assessments.length > 0
+            ? parsed.assessments
+            : [sampleTendernoticeAssessment],
+      };
+    }
   } catch {
     state = initial;
   }

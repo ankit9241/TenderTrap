@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAssessment } from "@/lib/store";
+import { isRequirementLinkedToDocument } from "@/lib/assessment/match";
 import type { DocumentStatus } from "@/types/tender";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +26,7 @@ function Documents() {
     <div className="shell py-10 md:py-14">
       <ul className="border-t border-border">
         {a.documents.map((d) => {
-          const refs = a.requirements.filter((r) => r.source?.documentId === d.id);
+          const refs = a.requirements.filter((r) => isRequirementLinkedToDocument(r, d));
           const [label, cls] = statusText[d.status];
           return (
             <li key={d.id} className="grid gap-6 border-b border-border py-8 md:grid-cols-[1.2fr_1fr]">
@@ -37,6 +38,11 @@ function Documents() {
                 <p className="mt-2 break-all font-display text-xl">{d.filename}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <span className={cn("meta px-2 py-1", cls)}>{label}</span>
+                  {a.unprocessedPages && a.unprocessedPages.length > 0 && d.kind === "tender" && (
+                    <span className="meta px-2 py-1 bg-unknown text-unknown-ink">
+                      Partial coverage ({a.analyzedPageCount ?? 15} / {a.pageCount ?? 157} pages)
+                    </span>
+                  )}
                   {d.sizeBytes != null && <span className="meta text-muted-foreground">{(d.sizeBytes / 1024 / 1024).toFixed(2)} MB</span>}
                 </div>
                 {d.note && <p className="mt-3 text-sm text-muted-foreground">{d.note}</p>}

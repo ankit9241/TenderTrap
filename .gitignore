@@ -15,6 +15,9 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+.env
+.env.*
+!.env.example
 
 # Wrangler / Cloudflare
 .wrangler/
@@ -30,3 +33,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Scratch and temporary testing artifacts
+scratch/
+scratch_*.json
+
+# Tesseract traineddata and large fixtures
+tessdata/
+public/tessdata/
+public/fixtures/

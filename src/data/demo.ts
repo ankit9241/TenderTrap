@@ -88,6 +88,8 @@ export function buildDemoAssessment(
     authority: overrides.authority || "Illustrative Municipal Corporation",
     procurementSource: overrides.procurementSource || "State e-procurement (illustrative)",
     deadline: overrides.deadline ?? "2026-11-12",
+    bidSubmissionDeadline: overrides.deadline ?? "2026-11-12",
+    documentType: "tender_notice",
     emdAmount: "₹1,20,000",
     companyId: company.id,
     evidenceSnapshot: snapshotEvidence(company),

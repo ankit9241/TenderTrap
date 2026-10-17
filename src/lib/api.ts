@@ -1,9 +1,42 @@
-import type { TenderRequirement } from "@/types/tender";
+import type { TenderAnalysisResult, TenderRequirement } from "@/types/tender";
 
 /** Centralised API client. The extraction backend is configured with VITE_API_BASE_URL. */
 export const API_BASE = (import.meta.env["VITE_API_BASE_URL"] as string | undefined)?.replace(/\/$/, "") || null;
 
 export class ApiError extends Error {}
+
+export async function analyzeTender(file: File): Promise<TenderAnalysisResult> {
+  if (!API_BASE) throw new ApiError("The analysis service is not connected.");
+  const body = new FormData();
+  body.append("file", file);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/tenders/analyze`, { method: "POST", body });
+  } catch (err) {
+    throw new ApiError(`Network error while contacting analysis service: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  if (!res.ok) {
+    let errMessage = `Analysis failed (${res.status}).`;
+    try {
+      const data = await res.json();
+      if (data?.error) {
+        errMessage = `${data.error}${data.details ? ` (${data.details})` : ""}`;
+      }
+    } catch {
+      // Response was not JSON
+    }
+    throw new ApiError(errMessage);
+  }
+
+  const data: unknown = await res.json();
+  if (!data || typeof data !== "object" || !Array.isArray((data as TenderAnalysisResult).requirements)) {
+    throw new ApiError("The analysis result was not in the expected format.");
+  }
+
+  return data as TenderAnalysisResult;
+}
 
 export async function extractTender(file: File): Promise<TenderRequirement[]> {
   if (!API_BASE) throw new ApiError("The extraction service is not connected.");
@@ -47,8 +80,9 @@ export async function validatePdf(file: File): Promise<string | null> {
   if (file.size > MAX_PDF_BYTES) return "This file is larger than 25 MB.";
   if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") return "Only PDF files are supported.";
   try {
-    const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
-    if (String.fromCharCode(...head) !== "%PDF-") return "This file doesn't look like a valid PDF. It may be corrupted.";
+    const slice = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+    const headerStr = String.fromCharCode(...slice);
+    if (!headerStr.includes("%PDF-")) return "This file doesn't look like a valid PDF. It may be corrupted.";
   } catch {
     return "This file could not be read.";
   }

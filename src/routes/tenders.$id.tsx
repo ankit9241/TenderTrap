@@ -47,6 +47,11 @@ function TenderLayout() {
         <div className="shell pt-10 md:pt-14">
           <div className="flex flex-wrap items-center gap-3">
             <span className="meta text-muted-foreground">{a.reference}</span>
+            {a.documentType && a.documentType !== "tender_notice" && (
+              <span className="rounded bg-unknown/20 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wider text-unknown-ink border border-unknown-ink/30">
+                {a.documentType.replace(/_/g, " ")}
+              </span>
+            )}
             {a.demo && <DemoBadge />}
           </div>
           <h1 className="mt-3 max-w-4xl text-3xl font-semibold md:text-[40px] md:leading-tight">{a.title}</h1>
@@ -54,8 +59,17 @@ function TenderLayout() {
             {[
               ["Authority", a.authority],
               ["Source", a.procurementSource],
-              ["Deadline", formatDate(a.deadline)],
-              ["Document", a.documents[0]?.status === "ready" ? "Ready for review" : "Not processed"],
+              ["Doc Type", a.documentType ? a.documentType.replace(/_/g, " ") : "Tender Notice"],
+              [
+                "Document",
+                a.extractionStatus === "partial_ocr" || (a.unprocessedPages && a.unprocessedPages.length > 0)
+                  ? `Partially processed (${a.analyzedPageCount ?? 15}/${a.pageCount ?? 157} pages)`
+                  : a.documents[0]?.status === "ready"
+                  ? "Ready for review"
+                  : a.documents[0]?.status === "mapping_incomplete"
+                  ? "Mapping incomplete"
+                  : "Not processed",
+              ],
               ["Last assessed", formatStamp(a.updatedAt)],
             ].map(([k, v]) => (
               <div key={k}>

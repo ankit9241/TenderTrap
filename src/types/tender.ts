@@ -28,6 +28,8 @@ export interface TenderRequirement {
   mandatory: boolean | "unknown";
   normalizedCondition: string;
   source: SourceReference | null;
+  sectionId?: string | undefined;
+  sectionTitle?: string | undefined;
   status: RequirementStatus;
   matchedEvidenceIds: string[];
   rationale: string;
@@ -64,6 +66,30 @@ export interface EvidenceRecord {
 
 export type Recommendation = "PROCEED" | "INVESTIGATE" | "SKIP";
 
+export type DocumentType =
+  | "tender_notice"
+  | "contract_conditions"
+  | "circular_or_policy"
+  | "amendment_or_corrigendum"
+  | "mixed_compilation"
+  | "unknown";
+
+export interface DocumentSection {
+  id: string;
+  title: string;
+  documentType: DocumentType;
+  pageRange: [number, number];
+  reference?: string | null;
+  authority?: string | null;
+  summary?: string;
+}
+
+export interface ContractualDuration {
+  description: string;
+  duration: string;
+  pageNumber: number | null;
+}
+
 export interface Assessment {
   id: string;
   demo: boolean;
@@ -72,12 +98,21 @@ export interface Assessment {
   authority: string;
   procurementSource: string;
   deadline: string | null;
+  bidSubmissionDeadline?: string | null;
+  documentType?: DocumentType;
+  sections?: DocumentSection[];
+  contractualDurations?: ContractualDuration[];
   emdAmount?: string | undefined;
   companyId: string;
   /** Snapshot of the company evidence used, so later profile edits don't rewrite history */
   evidenceSnapshot: EvidenceRecord[];
   documents: TenderDocument[];
   requirements: TenderRequirement[];
+  pageCount?: number | undefined;
+  analyzedPageCount?: number | undefined;
+  unprocessedPages?: number[] | undefined;
+  warnings?: string[] | undefined;
+  extractionStatus?: "success" | "partial_ocr" | undefined;
   createdAt: string;
   updatedAt: string;
 }
@@ -116,4 +151,53 @@ export interface CompanyProfile {
   projects: ProjectRecord[];
   registrations: RegistrationRecord[];
   updatedAt: string;
+}
+
+export interface ExtractedTenderMetadata {
+  title: string | null;
+  reference: string | null;
+  authority: string | null;
+  procurementSource: string | null;
+  estimatedValue: string | null;
+  emdAmount: string | null;
+  tenderFee: string | null;
+  bidSubmissionDeadline: string | null;
+  deadline: string | null;
+  importantDates?: Array<{ event: string; date: string }>;
+  contractualDurations?: ContractualDuration[];
+  documentType: DocumentType;
+  sections?: DocumentSection[];
+  isCompilation?: boolean;
+}
+
+export interface ChunkProfiling {
+  chunkIndex: number;
+  pageNumbers: number[];
+  characterCount: number;
+  durationMs: number;
+  requirementsCount: number;
+  status: "success" | "error";
+  error?: string;
+}
+
+export interface TenderAnalysisResult {
+  extractionId: string;
+  filename: string;
+  pageCount: number;
+  analyzedPageCount: number;
+  unprocessedPages?: number[];
+  extractionStatus: "success" | "partial_ocr";
+  ocrStatus?: "not_needed" | "completed" | "partial" | "failed";
+  ocrConfidenceAvg?: number | null;
+  lowConfidencePages?: number[];
+  totalCharacters: number;
+  metadata: ExtractedTenderMetadata;
+  documentType?: DocumentType;
+  sections?: DocumentSection[];
+  contractualDurations?: ContractualDuration[];
+  requirements: TenderRequirement[];
+  warnings: string[];
+  llmModel: string;
+  analyzedAt: string;
+  profiling?: ChunkProfiling[];
 }

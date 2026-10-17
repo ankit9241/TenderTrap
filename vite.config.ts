@@ -6,6 +6,8 @@ import tsConfigPaths from "vite-tsconfig-paths";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { nitro } from "nitro/vite";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
@@ -26,10 +28,25 @@ export default defineConfig({
     host: "::",
     port: 8080,
   },
+  define: {
+    "process.env": {},
+  },
+  optimizeDeps: {
+    exclude: ["@napi-rs/canvas", "tesseract.js"],
+  },
+  ssr: {
+    external: ["tesseract.js", "@napi-rs/canvas"],
+  },
   plugins: [
     tsConfigPaths({ projects: ["./tsconfig.json"] }),
     tanstackStart({
       server: { entry: "server" },
+    }),
+    nitro({
+      preset: "node-server",
+      rollupConfig: {
+        external: ["tesseract.js", "@napi-rs/canvas"],
+      },
     }),
     viteReact(),
     tailwindcss(),
