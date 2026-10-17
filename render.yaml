@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: tendertrap
+    env: node
+    branch: main
+    buildCommand: bun install && bun run build
+    startCommand: node .output/server/index.mjs
+    envVars:
+      - key: NITRO_PRESET
+        value: render_com
+      - key: NODE_VERSION
+        value: "20"

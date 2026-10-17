@@ -28,9 +28,6 @@ export default defineConfig({
     host: "::",
     port: 8080,
   },
-  define: {
-    "process.env": {},
-  },
   optimizeDeps: {
     exclude: ["@napi-rs/canvas", "tesseract.js"],
   },
