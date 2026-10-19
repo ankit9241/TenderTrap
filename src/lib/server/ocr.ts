@@ -80,12 +80,18 @@ export async function initializeOcrWorker(): Promise<Worker> {
     gzip: false,
   };
 
-  const workerPath = path.resolve(process.cwd(), "node_modules/tesseract.js/src/worker-script/node/index.js");
+  const workerPath = path.resolve(
+    process.cwd(),
+    "node_modules/tesseract.js/src/worker-script/node/index.js",
+  );
   if (fs.existsSync(workerPath)) {
     options["workerPath"] = workerPath;
   }
 
-  const corePath = path.resolve(process.cwd(), "node_modules/tesseract.js-core/tesseract-core.wasm.js");
+  const corePath = path.resolve(
+    process.cwd(),
+    "node_modules/tesseract.js-core/tesseract-core.wasm.js",
+  );
   if (fs.existsSync(corePath)) {
     options["corePath"] = corePath;
   }
@@ -144,7 +150,10 @@ export async function processPagesWithOcr(
 }> {
   const maxPages = options.maxOcrPages ?? DEFAULT_MAX_OCR_PAGES;
   const rawTimeout = options.perPageTimeoutMs ?? DEFAULT_PER_PAGE_TIMEOUT_MS;
-  const perPageTimeout = Math.min(Math.max(rawTimeout, MIN_PAGE_TIMEOUT_MS), HARD_MAX_PAGE_TIMEOUT_MS);
+  const perPageTimeout = Math.min(
+    Math.max(rawTimeout, MIN_PAGE_TIMEOUT_MS),
+    HARD_MAX_PAGE_TIMEOUT_MS,
+  );
   const totalBudget = options.totalBudgetMs ?? DEFAULT_TOTAL_BUDGET_MS;
   const scale = options.scale ?? DEFAULT_OCR_SCALE;
   const lowConfidenceThreshold = options.lowConfidenceThreshold ?? DEFAULT_LOW_CONFIDENCE_THRESHOLD;
@@ -170,7 +179,7 @@ export async function processPagesWithOcr(
 
   if (excessPages.length > 0) {
     warnings.push(
-      `Document contains ${targetPages.length} scanned/image-only pages. Only the first ${maxPages} pages were processed by OCR (exceeded the maximum OCR page limit of ${maxPages} pages). Remaining ${excessPages.length} pages (${excessPages.map((p) => p.pageNumber).join(", ")}) were not processed.`,
+      `Document contains ${targetPages.length} scanned/image-only pages. OCR was limited to attempting the first ${maxPages} pages (maximum OCR page limit). Remaining ${excessPages.length} pages (${excessPages.map((p) => p.pageNumber).join(", ")}) were not attempted.`,
     );
   }
 
@@ -208,7 +217,10 @@ export async function processPagesWithOcr(
           });
         }
         warnings.push(
-          `OCR processing stopped because the total budget of ${totalBudget / 1000}s was reached. Pages ${pagesToProcess.slice(i).map((p) => p.pageNumber).join(", ")} remain unprocessed.`,
+          `OCR processing stopped because the total budget of ${totalBudget / 1000}s was reached. Pages ${pagesToProcess
+            .slice(i)
+            .map((p) => p.pageNumber)
+            .join(", ")} were not attempted.`,
         );
         break;
       }
@@ -228,17 +240,22 @@ export async function processPagesWithOcr(
           const ocrResult = await worker.recognize(imageBuffer);
           return {
             text: ocrResult.data.text || "",
-            confidence: typeof ocrResult.data.confidence === "number" ? Math.round(ocrResult.data.confidence) : null,
+            confidence:
+              typeof ocrResult.data.confidence === "number"
+                ? Math.round(ocrResult.data.confidence)
+                : null,
           };
         })();
 
         // Per-page timeout safeguard
         let timeoutHandle: any;
-        const timeoutPromise = new Promise<{ text: string; confidence: number | null }>((_, reject) => {
-          timeoutHandle = setTimeout(() => {
-            reject(new Error(`OCR timeout on page ${pageNum} (${perPageTimeout}ms exceeded)`));
-          }, perPageTimeout);
-        });
+        const timeoutPromise = new Promise<{ text: string; confidence: number | null }>(
+          (_, reject) => {
+            timeoutHandle = setTimeout(() => {
+              reject(new Error(`OCR timeout on page ${pageNum} (${perPageTimeout}ms exceeded)`));
+            }, perPageTimeout);
+          },
+        );
 
         pagePromise.catch(() => {});
 

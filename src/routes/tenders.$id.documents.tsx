@@ -3,6 +3,7 @@ import { useAssessment } from "@/lib/store";
 import { isRequirementLinkedToDocument } from "@/lib/assessment/match";
 import type { DocumentStatus } from "@/types/tender";
 import { cn } from "@/lib/utils";
+import { getPageCoverage } from "@/lib/assessment/coverage";
 
 export const Route = createFileRoute("/tenders/$id/documents")({
   component: Documents,
@@ -21,6 +22,7 @@ function Documents() {
   const { id } = Route.useParams();
   const a = useAssessment(id);
   if (!a) return null;
+  const coverage = getPageCoverage(a);
 
   return (
     <div className="shell py-10 md:py-14">
@@ -29,7 +31,10 @@ function Documents() {
           const refs = a.requirements.filter((r) => isRequirementLinkedToDocument(r, d));
           const [label, cls] = statusText[d.status];
           return (
-            <li key={d.id} className="grid gap-6 border-b border-border py-8 md:grid-cols-[1.2fr_1fr]">
+            <li
+              key={d.id}
+              className="grid gap-6 border-b border-border py-8 md:grid-cols-[1.2fr_1fr]"
+            >
               <div>
                 <p className="meta text-muted-foreground">
                   {d.kind === "tender" ? "Tender document" : "Supporting evidence"} ·{" "}
@@ -38,26 +43,43 @@ function Documents() {
                 <p className="mt-2 break-all font-display text-xl">{d.filename}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <span className={cn("meta px-2 py-1", cls)}>{label}</span>
-                  {a.unprocessedPages && a.unprocessedPages.length > 0 && d.kind === "tender" && (
-                    <span className="meta px-2 py-1 bg-unknown text-unknown-ink">
-                      Partial coverage ({a.analyzedPageCount ?? 15} / {a.pageCount ?? 157} pages)
+                  {coverage.isPartial &&
+                    d.kind === "tender" &&
+                    coverage.processedPages !== undefined &&
+                    coverage.totalPages !== undefined && (
+                      <span className="meta px-2 py-1 bg-unknown text-unknown-ink">
+                        Partial coverage ({coverage.processedPages} / {coverage.totalPages} pages)
+                      </span>
+                    )}
+                  {d.sizeBytes != null && (
+                    <span className="meta text-muted-foreground">
+                      {(d.sizeBytes / 1024 / 1024).toFixed(2)} MB
                     </span>
                   )}
-                  {d.sizeBytes != null && <span className="meta text-muted-foreground">{(d.sizeBytes / 1024 / 1024).toFixed(2)} MB</span>}
                 </div>
                 {d.note && <p className="mt-3 text-sm text-muted-foreground">{d.note}</p>}
               </div>
               <div>
                 <p className="meta text-muted-foreground">Extracted references · {refs.length}</p>
                 {refs.length === 0 ? (
-                  <p className="mt-3 text-sm text-muted-foreground">No requirements map to this document.</p>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    No requirements map to this document.
+                  </p>
                 ) : (
                   <ul className="mt-3 space-y-2 text-sm">
                     {refs.map((r) => (
                       <li key={r.id}>
-                        <Link to="/tenders/$id/requirements" params={{ id }} search={{ r: r.id }} className="flex justify-between gap-4 hover:text-primary">
+                        <Link
+                          to="/tenders/$id/requirements"
+                          params={{ id }}
+                          search={{ r: r.id }}
+                          className="flex justify-between gap-4 hover:text-primary"
+                        >
                           <span>{r.title}</span>
-                          <span className="meta text-muted-foreground">p. {r.source?.pageNumber ?? "?"}{r.source?.clauseNumber && ` · ${r.source.clauseNumber}`}</span>
+                          <span className="meta text-muted-foreground">
+                            p. {r.source?.pageNumber ?? "?"}
+                            {r.source?.clauseNumber && ` · ${r.source.clauseNumber}`}
+                          </span>
                         </Link>
                       </li>
                     ))}
@@ -69,7 +91,8 @@ function Documents() {
         })}
       </ul>
       <p className="meta mt-10 text-muted-foreground">
-        Documents are user-provided or illustrative. TenderTrap does not check live GeM or government portals.
+        Documents are user-provided or illustrative. TenderTrap does not check live GeM or
+        government portals.
       </p>
     </div>
   );

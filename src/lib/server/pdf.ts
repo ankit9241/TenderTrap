@@ -1,12 +1,15 @@
 import { extractText } from "unpdf";
 import { sanitizeError } from "./db";
-import { processPagesWithOcr, type OcrProcessingOptions } from "./ocr";
+import { DEFAULT_MAX_OCR_PAGES, processPagesWithOcr, type OcrProcessingOptions } from "./ocr";
 
 /**
  * Maximum allowed PDF file size: 25 MB default (configurable via MAX_PDF_SIZE_MB).
  */
-const configuredMaxMb = process.env["MAX_PDF_SIZE_MB"] ? Number(process.env["MAX_PDF_SIZE_MB"]) : 25;
-export const MAX_PDF_SIZE_BYTES = (!isNaN(configuredMaxMb) && configuredMaxMb > 0 ? configuredMaxMb : 25) * 1024 * 1024;
+const configuredMaxMb = process.env["MAX_PDF_SIZE_MB"]
+  ? Number(process.env["MAX_PDF_SIZE_MB"])
+  : 25;
+export const MAX_PDF_SIZE_BYTES =
+  (!isNaN(configuredMaxMb) && configuredMaxMb > 0 ? configuredMaxMb : 25) * 1024 * 1024;
 
 /**
  * Maximum extracted character limit across all pages to protect server memory.
@@ -36,7 +39,8 @@ export interface ExtractedPage {
   requiresHumanReview?: boolean;
 }
 
-export type ExtractionStatus = "success" | "partial_ocr" | "scanned_ocr_required" | "text_limit_exceeded";
+export type ExtractionStatus =
+  "success" | "partial_ocr" | "scanned_ocr_required" | "text_limit_exceeded";
 
 export interface PdfExtractionResult {
   extractionId: string;
@@ -45,6 +49,9 @@ export interface PdfExtractionResult {
   totalCharacters: number;
   extractionStatus: ExtractionStatus;
   pages: ExtractedPage[];
+  processedPageCount: number;
+  attemptedPageCount: number;
+  ocrPageLimit?: number;
   warnings: string[];
   unprocessedPages?: number[];
   error?: string;
@@ -141,7 +148,8 @@ export function validatePdfFile(
   const mimeType = "type" in file ? file.type : "";
 
   const hasPdfExtension = /\.pdf$/i.test(filename);
-  const isPdfMime = mimeType === "application/pdf" || mimeType === "application/x-pdf" || mimeType === "";
+  const isPdfMime =
+    mimeType === "application/pdf" || mimeType === "application/x-pdf" || mimeType === "";
 
   if (filename && !hasPdfExtension) {
     return {
@@ -165,7 +173,8 @@ export function validatePdfFile(
     return {
       valid: false,
       status: 400,
-      error: "Invalid PDF format: file lacks the standard '%PDF-' header signature. It may be corrupted or not a genuine PDF.",
+      error:
+        "Invalid PDF format: file lacks the standard '%PDF-' header signature. It may be corrupted or not a genuine PDF.",
     };
   }
 
@@ -195,7 +204,12 @@ export async function extractTextFromPdf(
   }
 
   const warnings: string[] = [];
-  const rawPages: Array<{ pageNumber: number; text: string; charCount: number; needsOcr: boolean }> = [];
+  const rawPages: Array<{
+    pageNumber: number;
+    text: string;
+    charCount: number;
+    needsOcr: boolean;
+  }> = [];
   const pagesToOcr: Array<{ pageNumber: number; existingText: string }> = [];
 
   for (let i = 0; i < parsed.totalPages; i++) {
@@ -269,6 +283,25 @@ export async function extractTextFromPdf(
     }
   }
 
+  const processedPageNumbers = new Set(
+    pages
+      .filter(
+        (page) =>
+          (page.method === "native" && page.text.trim().length > 0) ||
+          page.ocrStatus === "success" ||
+          page.ocrStatus === "low_confidence",
+      )
+      .map((page) => page.pageNumber),
+  );
+  const attemptedPageNumbers = new Set(
+    pages
+      .filter((page) => page.method === "native" || page.ocrStatus !== "unprocessed")
+      .map((page) => page.pageNumber),
+  );
+  unprocessedPages = Array.from({ length: parsed.totalPages }, (_, index) => index + 1).filter(
+    (pageNumber) => !processedPageNumbers.has(pageNumber),
+  );
+
   // Memory safety check
   if (totalCharacters > MAX_EXTRACTED_CHARS) {
     return {
@@ -276,6 +309,9 @@ export async function extractTextFromPdf(
       filename,
       pageCount: parsed.totalPages,
       totalCharacters,
+      processedPageCount: processedPageNumbers.size,
+      attemptedPageCount: attemptedPageNumbers.size,
+      ocrPageLimit: ocrOptions.maxOcrPages ?? DEFAULT_MAX_OCR_PAGES,
       extractionStatus: "text_limit_exceeded",
       pages: [],
       warnings,
@@ -290,13 +326,17 @@ export async function extractTextFromPdf(
       filename,
       pageCount: parsed.totalPages,
       totalCharacters,
+      processedPageCount: processedPageNumbers.size,
+      attemptedPageCount: attemptedPageNumbers.size,
+      ocrPageLimit: ocrOptions.maxOcrPages ?? DEFAULT_MAX_OCR_PAGES,
       extractionStatus: "scanned_ocr_required",
       pages,
       warnings: [
         ...warnings,
         `No machine-readable text found across ${parsed.totalPages} page(s). This document appears to be scanned or image-based.`,
       ],
-      error: "This document appears to be a scanned or image-only PDF without embedded text. OCR (Optical Character Recognition) is not yet supported for blank scans; OCR (Optical Character Recognition) was unable to detect legible text.",
+      error:
+        "This document appears to be a scanned or image-only PDF without embedded text. OCR (Optical Character Recognition) is not yet supported for blank scans; OCR (Optical Character Recognition) was unable to detect legible text.",
     };
   }
 
@@ -307,6 +347,9 @@ export async function extractTextFromPdf(
       filename,
       pageCount: parsed.totalPages,
       totalCharacters,
+      processedPageCount: processedPageNumbers.size,
+      attemptedPageCount: attemptedPageNumbers.size,
+      ocrPageLimit: ocrOptions.maxOcrPages ?? DEFAULT_MAX_OCR_PAGES,
       extractionStatus: "partial_ocr",
       pages,
       warnings,
@@ -319,6 +362,9 @@ export async function extractTextFromPdf(
     filename,
     pageCount: parsed.totalPages,
     totalCharacters,
+    processedPageCount: processedPageNumbers.size,
+    attemptedPageCount: attemptedPageNumbers.size,
+    ocrPageLimit: ocrOptions.maxOcrPages ?? DEFAULT_MAX_OCR_PAGES,
     extractionStatus: "success",
     pages,
     warnings,

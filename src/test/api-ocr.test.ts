@@ -1,11 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  extractTextFromPdf,
-  isPageTextInsufficient,
-  type ExtractedPage,
-} from "@/lib/server/pdf";
-import { setMockOcrHandler } from "@/lib/server/ocr";
+import { extractTextFromPdf, isPageTextInsufficient, type ExtractedPage } from "@/lib/server/pdf";
+import { processPagesWithOcr, setMockOcrHandler } from "@/lib/server/ocr";
 import { setMockLlmProvider } from "@/lib/server/llm";
 import { Route as ExtractRoute } from "@/routes/api.tenders.extract";
 import { Route as AnalyzeRoute } from "@/routes/api.tenders.analyze";
@@ -95,7 +91,8 @@ startxref
 
 function createTwoPageMixedPdfBuffer(): Uint8Array {
   // Page 1 has rich native text; Page 2 has an empty stream (scanned)
-  const stream1 = "BT /F1 12 Tf 72 712 Td (Tender Notice: PWD Karnataka Highway Project Phase 1) Tj ET";
+  const stream1 =
+    "BT /F1 12 Tf 72 712 Td (Tender Notice: PWD Karnataka Highway Project Phase 1) Tj ET";
   const stream2 = "";
   const content = `%PDF-1.4
 1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
@@ -158,14 +155,17 @@ describe("OCR Fallback Architecture & Processing", () => {
 
     it("does NOT mark dense text as needing OCR", () => {
       expect(
-        isPageTextInsufficient("The bidder must possess Class 1 contractor license with Karnataka PWD."),
+        isPageTextInsufficient(
+          "The bidder must possess Class 1 contractor license with Karnataka PWD.",
+        ),
       ).toBe(false);
     });
   });
 
   describe("Native vs OCR Path Execution", () => {
     it("uses native extraction on selectable-text PDFs without triggering OCR", async () => {
-      const tenderText = "Tender Notice: PWD Karnataka Highway Expansion Project. Minimum Turnover INR 25 Cr.";
+      const tenderText =
+        "Tender Notice: PWD Karnataka Highway Expansion Project. Minimum Turnover INR 25 Cr.";
       const pdfBuf = createPdfBuffer(`BT /F1 12 Tf 72 712 Td (${tenderText}) Tj ET`);
 
       let ocrCalled = false;
@@ -247,7 +247,9 @@ describe("OCR Fallback Architecture & Processing", () => {
         };
       });
 
-      const result = await extractTextFromPdf(emptyBuf, "poor_scan.pdf", { lowConfidenceThreshold: 40 });
+      const result = await extractTextFromPdf(emptyBuf, "poor_scan.pdf", {
+        lowConfidenceThreshold: 40,
+      });
 
       expect(result.extractionStatus).toBe("success");
       const page = result.pages[0]!;
@@ -268,7 +270,9 @@ describe("OCR Fallback Architecture & Processing", () => {
       const result = await extractTextFromPdf(emptyBuf, "blank_scanned.pdf");
 
       expect(result.extractionStatus).toBe("scanned_ocr_required");
-      expect(result.error).toContain("OCR (Optical Character Recognition) was unable to detect legible text");
+      expect(result.error).toContain(
+        "OCR (Optical Character Recognition) was unable to detect legible text",
+      );
       expect(result.pages[0]!.ocrStatus).toBe("empty");
       expect(result.pages[0]!.requiresHumanReview).toBe(true);
     });
@@ -311,14 +315,19 @@ startxref
       });
 
       // Set maxOcrPages: 1 so page 2 cannot be processed
-      const result = await extractTextFromPdf(twoPageScanned, "oversized_scan.pdf", { maxOcrPages: 1 });
+      const result = await extractTextFromPdf(twoPageScanned, "oversized_scan.pdf", {
+        maxOcrPages: 1,
+      });
 
       expect(result.extractionStatus).toBe("partial_ocr");
       expect(result.unprocessedPages).toEqual([2]);
       expect(result.pages[0]!.ocrStatus).toBe("success");
       expect(result.pages[1]!.ocrStatus).toBe("unprocessed");
       expect(result.pages[1]!.requiresHumanReview).toBe(true);
-      expect(result.warnings.some((w) => w.includes("exceeded the maximum OCR page limit"))).toBe(true);
+      expect(result.processedPageCount).toBe(1);
+      expect(result.attemptedPageCount).toBe(1);
+      expect(result.unprocessedPages).toHaveLength(1);
+      expect(result.warnings.some((w) => w.includes("maximum OCR page limit"))).toBe(true);
     });
 
     it("handles OCR per-page failure gracefully without aborting remaining pages", async () => {
@@ -338,14 +347,32 @@ startxref
       expect(result.pages[1]!.method).toBe("ocr");
       expect(result.pages[1]!.ocrStatus).toBe("failed");
       expect(result.pages[1]!.requiresHumanReview).toBe(true);
+      expect(result.processedPageCount).toBe(1);
+      expect(result.attemptedPageCount).toBe(2);
+      expect(result.unprocessedPages).toEqual([2]);
       expect(result.warnings.some((w) => w.includes("Page 2 OCR failed"))).toBe(true);
+    });
+
+    it("marks pages after the time budget as unprocessed rather than processed", async () => {
+      setMockOcrHandler(async () => ({ text: "unused", confidence: 90 }));
+      const outcome = await processPagesWithOcr(
+        new Uint8Array(),
+        [{ pageNumber: 1 }, { pageNumber: 2 }],
+        { totalBudgetMs: 0, maxOcrPages: 2 },
+      );
+
+      expect(outcome.results.get(1)?.status).toBe("unprocessed");
+      expect(outcome.results.get(2)?.status).toBe("unprocessed");
+      expect(outcome.unprocessedPages).toEqual([1, 2]);
+      expect(outcome.warnings[0]).toContain("total budget");
     });
   });
 
   describe("Real Scanned PDF Integration Test", () => {
     it("renders page to image and runs real Tesseract OCR engine without mocking", async () => {
       // Create a PDF with renderable visual text
-      const stream = "BT /F1 18 Tf 72 712 Td (Tender Notice: PWD Karnataka Highway Expansion) Tj ET";
+      const stream =
+        "BT /F1 18 Tf 72 712 Td (Tender Notice: PWD Karnataka Highway Expansion) Tj ET";
       const realPdf = createPdfBuffer(stream, 1);
 
       // Force OCR processing on this page by passing it as insufficient

@@ -1,5 +1,11 @@
 import type { ExtractedPage } from "../pdf";
-import type { LlmMessage, LlmProvider, TenderAnalysisResult, ExtractedTenderMetadata, ChunkProfiling } from "./types";
+import type {
+  LlmMessage,
+  LlmProvider,
+  TenderAnalysisResult,
+  ExtractedTenderMetadata,
+  ChunkProfiling,
+} from "./types";
 import { OllamaProvider } from "./ollama";
 import { LlmExtractionChunkSchema } from "./schema";
 import type { DocumentSection, DocumentType, TenderRequirement } from "@/types/tender";
@@ -157,7 +163,10 @@ export function findOperativeSentenceOnPage(pageText: string, excerpt: string): 
     const lower = s.toLowerCase();
     if (lower.includes(cleanExcerpt) && s.length >= cleanExcerpt.length + 20) {
       // Must contain an operative obligation or directive verb
-      const hasOperativeVerb = /\b(?:shall|must|will|stipulate|provides?|imposed|required|require|liable|ordered|directed)\b/i.test(s);
+      const hasOperativeVerb =
+        /\b(?:shall|must|will|stipulate|provides?|imposed|required|require|liable|ordered|directed)\b/i.test(
+          s,
+        );
       if (hasOperativeVerb) {
         return s.replace(/\s+/g, " ");
       }
@@ -201,7 +210,9 @@ function buildChunkPrompt(pages: ExtractedPage[], isFirstChunk: boolean): LlmMes
   }
 
   const userPrompt = `Extract tender requirements from the following document pages.${
-    isFirstChunk ? " Also extract metadata (documentType, title, authority, reference, value, EMD, bidSubmissionDeadline) from these initial pages." : ""
+    isFirstChunk
+      ? " Also extract metadata (documentType, title, authority, reference, value, EMD, bidSubmissionDeadline) from these initial pages."
+      : ""
   }
 
 ${docBody}
@@ -250,7 +261,10 @@ Return JSON with this exact structure:
 
 export interface AnalyzeTenderOptions {
   totalPageCount?: number;
+  processedPageCount?: number;
+  attemptedPageCount?: number;
   unprocessedPages?: number[];
+  ocrPageLimit?: number;
   extractionStatus?: "success" | "partial_ocr";
   ocrStatus?: "not_needed" | "completed" | "partial" | "failed";
   ocrConfidenceAvg?: number | null;
@@ -266,7 +280,12 @@ export async function analyzeTenderPages(
   const provider = getLlmProvider();
 
   // Filter pages that contain usable text to avoid empty LLM prompts
-  const usablePages = pages.filter((p) => p.text && p.text.trim().length > 0);
+  const usablePages = pages.filter(
+    (p) =>
+      p.text &&
+      p.text.trim().length > 0 &&
+      (p.method === "native" || p.ocrStatus === "success" || p.ocrStatus === "low_confidence"),
+  );
 
   if (usablePages.length === 0) {
     throw new Error("No usable text available in document pages to perform LLM analysis.");
@@ -302,7 +321,10 @@ export async function analyzeTenderPages(
 
   for (let idx = 0; idx < chunks.length; idx++) {
     const chunkPages = chunks[idx]!;
-    const chunkChars = chunkPages.reduce((sum, p) => sum + (p.characterCount || p.text?.length || 0), 0);
+    const chunkChars = chunkPages.reduce(
+      (sum, p) => sum + (p.characterCount || p.text?.length || 0),
+      0,
+    );
     totalCharacters += chunkChars;
 
     const startTime = Date.now();
@@ -328,7 +350,9 @@ export async function analyzeTenderPages(
 
       const chunkResult = LlmExtractionChunkSchema.safeParse(parsedJson);
       if (!chunkResult.success) {
-        const issueDetails = chunkResult.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+        const issueDetails = chunkResult.error.issues
+          .map((i) => `${i.path.join(".")}: ${i.message}`)
+          .join("; ");
         throw new Error(`Schema validation failed on chunk ${idx + 1}: ${issueDetails}`);
       }
 
@@ -343,12 +367,19 @@ export async function analyzeTenderPages(
           estimatedValue: data.metadata.estimatedValue,
           emdAmount: data.metadata.emdAmount,
           tenderFee: data.metadata.tenderFee,
-          bidSubmissionDeadline: data.metadata.bidSubmissionDeadline || data.metadata.deadline || null,
+          bidSubmissionDeadline:
+            data.metadata.bidSubmissionDeadline || data.metadata.deadline || null,
           deadline: data.metadata.deadline || data.metadata.bidSubmissionDeadline || null,
           importantDates: data.metadata.importantDates ?? [],
           contractualDurations: data.metadata.contractualDurations ?? [],
-          documentType: classification.overallType !== "unknown" ? classification.overallType : data.metadata.documentType,
-          sections: classification.sections.length > 0 ? classification.sections : data.metadata.sections ?? [],
+          documentType:
+            classification.overallType !== "unknown"
+              ? classification.overallType
+              : data.metadata.documentType,
+          sections:
+            classification.sections.length > 0
+              ? classification.sections
+              : (data.metadata.sections ?? []),
           isCompilation: classification.isCompilation || Boolean(data.metadata.isCompilation),
         };
       }
@@ -383,7 +414,7 @@ export async function analyzeTenderPages(
   const totalPageCount = Math.max(options?.totalPageCount ?? pages.length, maxPageInInput);
   const analyzedPageNumbers = usablePages.map((p) => p.pageNumber);
   const analyzedSet = new Set(analyzedPageNumbers);
-  const analyzedPageCount = analyzedSet.size;
+  const analyzedPageCount = options?.processedPageCount ?? analyzedSet.size;
 
   const pageMap = new Map<number, ExtractedPage>();
   for (const p of pages) {
@@ -442,7 +473,8 @@ export async function analyzeTenderPages(
 
   const ocrConfidenceAvg =
     ocrConfidences.length > 0
-      ? Math.round((ocrConfidences.reduce((sum, c) => sum + c, 0) / ocrConfidences.length) * 10) / 10
+      ? Math.round((ocrConfidences.reduce((sum, c) => sum + c, 0) / ocrConfidences.length) * 10) /
+        10
       : (options?.ocrConfidenceAvg ?? null);
 
   let ocrStatus: "not_needed" | "completed" | "partial" | "failed" = "not_needed";
@@ -486,7 +518,7 @@ export async function analyzeTenderPages(
   const documentType: DocumentType =
     classification.overallType !== "unknown"
       ? classification.overallType
-      : (mergedMetadata.documentType || "unknown");
+      : mergedMetadata.documentType || "unknown";
 
   const sections = classification.sections;
   const isCompilation = classification.isCompilation;
@@ -534,7 +566,8 @@ export async function analyzeTenderPages(
 
   // Deduplicate and map raw requirements with OCR uncertainty propagation and section attribution
   const requirements: TenderRequirement[] = rawRequirements.map((r, index) => {
-    const pageNum = typeof r.pageNumber === "number" && pageMap.has(r.pageNumber) ? r.pageNumber : null;
+    const pageNum =
+      typeof r.pageNumber === "number" && pageMap.has(r.pageNumber) ? r.pageNumber : null;
     const sourcePage = pageNum !== null ? pageMap.get(pageNum) : undefined;
 
     let requiresHumanReview = Boolean(r.requiresHumanReview);
@@ -548,7 +581,9 @@ export async function analyzeTenderPages(
     const isPerformanceGuarantee =
       /performance\s+(?:guarantee|security)|(?:\b|^)pg\b|(?:\b|^)apg\b/i.test(r.title) ||
       /performance\s+(?:guarantee|security)|(?:\b|^)pg\b|(?:\b|^)apg\b/i.test(r.excerpt || "") ||
-      /performance\s+(?:guarantee|security)|(?:\b|^)pg\b|(?:\b|^)apg\b/i.test(r.normalizedCondition || "");
+      /performance\s+(?:guarantee|security)|(?:\b|^)pg\b|(?:\b|^)apg\b/i.test(
+        r.normalizedCondition || "",
+      );
     const mentionsEmd = /earnest\s+money|(?:\b|^)emd\b/i.test(r.excerpt || "");
 
     if (isPerformanceGuarantee && !mentionsEmd) {
@@ -558,7 +593,10 @@ export async function analyzeTenderPages(
       // If model erroneously injected "EMD" into the title of a pure Performance Guarantee clause, clean the title
       if (/earnest\s+money|\bemd\b/i.test(title)) {
         title = title
-          .replace(/(?:\(\s*emd\s*\)|\bearnest\s+money\s*(?:deposit)?\b|\bemd\b)\s*(?:\/|-|&)?\s*/gi, "")
+          .replace(
+            /(?:\(\s*emd\s*\)|\bearnest\s+money\s*(?:deposit)?\b|\bemd\b)\s*(?:\/|-|&)?\s*/gi,
+            "",
+          )
           .replace(/^[()\s\/\-&]+|[()\s\/\-&]+$/g, "")
           .replace(/\s+/g, " ")
           .trim();
@@ -591,7 +629,9 @@ export async function analyzeTenderPages(
     // Operative Clause Substantiation: Detect Title-Only or Non-Substantiating Excerpts
     if (isTitleOnlyExcerpt(finalExcerpt, title)) {
       const reportedSourcePage = reportedPage !== null ? pageMap.get(reportedPage) : undefined;
-      const operativeSentence = reportedSourcePage ? findOperativeSentenceOnPage(reportedSourcePage.text, finalExcerpt) : null;
+      const operativeSentence = reportedSourcePage
+        ? findOperativeSentenceOnPage(reportedSourcePage.text, finalExcerpt)
+        : null;
 
       if (operativeSentence && !isTitleOnlyExcerpt(operativeSentence, title)) {
         finalExcerpt = operativeSentence;
@@ -610,7 +650,9 @@ export async function analyzeTenderPages(
     } else {
       // 1. Check reported page first
       const reportedSourcePage = reportedPage !== null ? pageMap.get(reportedPage) : undefined;
-      const matchesReported = reportedSourcePage ? checkExcerptMatchesPage(reportedSourcePage.text, finalExcerpt) : false;
+      const matchesReported = reportedSourcePage
+        ? checkExcerptMatchesPage(reportedSourcePage.text, finalExcerpt)
+        : false;
 
       if (matchesReported) {
         finalPageNumber = reportedPage;
@@ -657,7 +699,10 @@ export async function analyzeTenderPages(
 
       if (isLowConfidence) {
         requiresHumanReview = true;
-        const confStr = typeof finalSourcePage.confidence === "number" ? ` (${finalSourcePage.confidence}% confidence)` : "";
+        const confStr =
+          typeof finalSourcePage.confidence === "number"
+            ? ` (${finalSourcePage.confidence}% confidence)`
+            : "";
         const note = `[Requires verification: Source page ${finalPageNumber} was extracted via OCR with low confidence${confStr}.]`;
         rationale = rationale ? `${rationale} ${note}` : note;
       }
@@ -669,7 +714,10 @@ export async function analyzeTenderPages(
 
     // Match requirement page number against detected sections
     const matchingSection = sections.find(
-      (s) => finalPageNumber !== null && finalPageNumber >= s.pageRange[0] && finalPageNumber <= s.pageRange[1],
+      (s) =>
+        finalPageNumber !== null &&
+        finalPageNumber >= s.pageRange[0] &&
+        finalPageNumber <= s.pageRange[1],
     );
     const sectionId = matchingSection?.id;
     const sectionTitle = matchingSection?.title;
@@ -707,7 +755,10 @@ export async function analyzeTenderPages(
     filename,
     pageCount: totalPageCount,
     analyzedPageCount,
+    processedPageCount: options?.processedPageCount ?? analyzedPageCount,
+    attemptedPageCount: options?.attemptedPageCount ?? analyzedPageCount,
     unprocessedPages: unprocessedPages.length > 0 ? unprocessedPages : undefined,
+    ...(options?.ocrPageLimit !== undefined ? { ocrPageLimit: options.ocrPageLimit } : {}),
     extractionStatus,
     ocrStatus,
     ocrConfidenceAvg,

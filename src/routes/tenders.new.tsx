@@ -8,6 +8,7 @@ import { linkRequirementsToDocument, matchRequirements } from "@/lib/assessment/
 import { actions, uid, useStore } from "@/lib/store";
 import { buildDemoAssessment, snapshotEvidence } from "@/data/demo";
 import { cn } from "@/lib/utils";
+import { getPageCoverage } from "@/lib/assessment/coverage";
 
 export const Route = createFileRoute("/tenders/new")({
   head: () => ({
@@ -38,7 +39,13 @@ function NewTender() {
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [meta, setMeta] = useState({ title: "", reference: "", authority: "", procurementSource: "", deadline: "" });
+  const [meta, setMeta] = useState({
+    title: "",
+    reference: "",
+    authority: "",
+    procurementSource: "",
+    deadline: "",
+  });
 
   const pick = async (f: File | undefined) => {
     if (!f) return;
@@ -58,22 +65,29 @@ function NewTender() {
     if (!file) return;
     setBusy(true);
     setError(null);
+    const id = uid("as");
+    const now = new Date().toISOString();
     try {
       const analysis = await analyzeTender(file);
       const docType = analysis.metadata?.documentType || analysis.documentType || "unknown";
       const sections = analysis.metadata?.sections || analysis.sections || [];
-      const contractualDurations = analysis.metadata?.contractualDurations || analysis.contractualDurations || [];
-      const effectiveDeadline = meta.deadline || analysis.metadata?.bidSubmissionDeadline || analysis.metadata?.deadline || null;
-      const matchedRequirements = matchRequirements(
-        analysis.requirements,
-        company,
-        { tenderDeadline: effectiveDeadline }
-      );
+      const contractualDurations =
+        analysis.metadata?.contractualDurations || analysis.contractualDurations || [];
+      const effectiveDeadline =
+        meta.deadline ||
+        analysis.metadata?.bidSubmissionDeadline ||
+        analysis.metadata?.deadline ||
+        null;
+      const matchedRequirements = matchRequirements(analysis.requirements, company, {
+        tenderDeadline: effectiveDeadline,
+      });
       const isPartial =
-        analysis.extractionStatus === "partial_ocr" ||
-        ((analysis.unprocessedPages?.length ?? 0) > 0);
+        analysis.extractionStatus === "partial_ocr" || (analysis.unprocessedPages?.length ?? 0) > 0;
+      const coverage = getPageCoverage(analysis);
       const docNote = isPartial
-        ? `Partially analyzed: ${analysis.analyzedPageCount ?? 15} of ${analysis.pageCount ?? 157} pages processed. ${analysis.unprocessedPages?.length ?? 0} pages were not analyzed.`
+        ? coverage.processedPages !== undefined && coverage.totalPages !== undefined
+          ? `Partially analyzed: ${coverage.processedPages} of ${coverage.totalPages} pages processed. ${coverage.remainingPages ?? 0} pages were not analyzed.`
+          : "Partially analyzed. Page coverage metadata is incomplete; unprocessed pages may contain additional requirements."
         : undefined;
 
       const doc = {
@@ -81,7 +95,7 @@ function NewTender() {
         filename: file.name,
         kind: "tender" as const,
         sizeBytes: file.size,
-        status: (isPartial ? "mapping_incomplete" : "ready") as const,
+        status: (isPartial ? "mapping_incomplete" : "ready") as "mapping_incomplete" | "ready",
         sourceType: "user_upload" as const,
         note: docNote,
       };
@@ -92,7 +106,8 @@ function NewTender() {
         title: meta.title || analysis.metadata?.title || file.name.replace(/\.pdf$/i, ""),
         reference: meta.reference || analysis.metadata?.reference || "Reference not provided",
         authority: meta.authority || analysis.metadata?.authority || "Not specified",
-        procurementSource: meta.procurementSource || analysis.metadata?.procurementSource || "User upload",
+        procurementSource:
+          meta.procurementSource || analysis.metadata?.procurementSource || "User upload",
         deadline: effectiveDeadline,
         bidSubmissionDeadline: effectiveDeadline,
         documentType: docType,
@@ -105,7 +120,12 @@ function NewTender() {
         requirements: linkedRequirements,
         pageCount: analysis.pageCount,
         analyzedPageCount: analysis.analyzedPageCount,
-        unprocessedPages: analysis.unprocessedPages,
+        processedPageCount: analysis.processedPageCount,
+        attemptedPageCount: analysis.attemptedPageCount,
+        ...(analysis.unprocessedPages !== undefined
+          ? { unprocessedPages: analysis.unprocessedPages }
+          : {}),
+        ...(analysis.ocrPageLimit !== undefined ? { ocrPageLimit: analysis.ocrPageLimit } : {}),
         warnings: analysis.warnings,
         extractionStatus: analysis.extractionStatus,
         createdAt: now,
@@ -121,7 +141,19 @@ function NewTender() {
 
   const openDemo = () => {
     const id = uid("as");
-    actions.addAssessment(buildDemoAssessment(id, { title: meta.title, reference: meta.reference, authority: meta.authority, procurementSource: meta.procurementSource, ...(meta.deadline ? { deadline: meta.deadline } : {}) }, company));
+    actions.addAssessment(
+      buildDemoAssessment(
+        id,
+        {
+          title: meta.title,
+          reference: meta.reference,
+          authority: meta.authority,
+          procurementSource: meta.procurementSource,
+          ...(meta.deadline ? { deadline: meta.deadline } : {}),
+        },
+        company,
+      ),
+    );
     navigate({ to: "/tenders/$id", params: { id } });
   };
 
@@ -132,18 +164,22 @@ function NewTender() {
           <Eyebrow>Document intake</Eyebrow>
           <h1 className="display-md mt-4">Start with the tender.</h1>
           <p className="mt-4 max-w-md text-muted-foreground">
-            Extract the requirements first. Evaluate your eligibility only after the evidence is compared.
+            Extract the requirements first. Evaluate your eligibility only after the evidence is
+            compared.
           </p>
           <div className="mt-10 border-t border-border pt-6 text-sm">
             <p className="meta text-muted-foreground">Company profile used</p>
             <p className="mt-2">{company.legalName}</p>
-            <p className="mt-1 text-muted-foreground">Evidence is snapshotted at assessment time.</p>
+            <p className="mt-1 text-muted-foreground">
+              Evidence is snapshotted at assessment time.
+            </p>
           </div>
           {!API_BASE && (
             <div className="mt-10 border-l-2 border-unknown-ink bg-unknown px-5 py-4 text-sm">
               <p className="font-medium">Extraction service not connected</p>
               <p className="mt-1 text-muted-foreground">
-                Real PDFs can't be analysed yet. You can still explore an illustrative demo assessment — it uses synthetic data and does not read your file.
+                Real PDFs can't be analysed yet. You can still explore an illustrative demo
+                assessment — it uses synthetic data and does not read your file.
               </p>
             </div>
           )}
@@ -151,7 +187,10 @@ function NewTender() {
 
         <div>
           <div
-            onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDrag(true);
+            }}
             onDragLeave={() => setDrag(false)}
             onDrop={onDrop}
             className={cn(
@@ -165,12 +204,19 @@ function NewTender() {
               <div className="anim-rise w-full text-left">
                 <p className="meta text-muted-foreground">Selected tender</p>
                 <p className="mt-2 break-all font-display text-xl">{file.name}</p>
-                <p className="meta mt-1 text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB · PDF</p>
+                <p className="meta mt-1 text-muted-foreground">
+                  {(file.size / 1024 / 1024).toFixed(2)} MB · PDF
+                </p>
                 <div className="mt-6 flex gap-4 items-center">
-                  <label htmlFor="tender-file" className={cn(action({ variant: "quiet", size: "sm" }), "cursor-pointer")}>
+                  <label
+                    htmlFor="tender-file"
+                    className={cn(action({ variant: "quiet", size: "sm" }), "cursor-pointer")}
+                  >
                     Replace
                   </label>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setFile(null)}>Remove</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setFile(null)}>
+                    Remove
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -178,7 +224,10 @@ function NewTender() {
                 <p className="font-display text-xl">Drop a tender PDF here</p>
                 <p className="mt-2 text-sm text-muted-foreground">One file · up to 25 MB</p>
                 <div className="mt-6 flex flex-col items-center gap-3">
-                  <label htmlFor="tender-file" className={cn(action({ variant: "quiet" }), "cursor-pointer")}>
+                  <label
+                    htmlFor="tender-file"
+                    className={cn(action({ variant: "quiet" }), "cursor-pointer")}
+                  >
                     Choose file
                   </label>
                   <button
@@ -188,7 +237,9 @@ function NewTender() {
                       try {
                         const res = await fetch("/fixtures/Tendernotice_1.pdf");
                         const blob = await res.blob();
-                        const f = new File([blob], "Tendernotice_1.pdf", { type: "application/pdf" });
+                        const f = new File([blob], "Tendernotice_1.pdf", {
+                          type: "application/pdf",
+                        });
                         void pick(f);
                       } catch {
                         setError("Could not load Tendernotice_1.pdf fixture.");
@@ -207,7 +258,9 @@ function NewTender() {
               type="file"
               accept="application/pdf,.pdf"
               className="sr-only"
-              onClick={(e) => { (e.target as HTMLInputElement).value = ""; }}
+              onClick={(e) => {
+                (e.target as HTMLInputElement).value = "";
+              }}
               onChange={(e) => {
                 const selected = e.target.files?.[0];
                 if (selected) {
@@ -216,7 +269,14 @@ function NewTender() {
               }}
             />
           </div>
-          {error && <p role="alert" className="anim-rise mt-4 border-l-2 border-primary pl-4 text-sm text-unmet-ink">{error}</p>}
+          {error && (
+            <p
+              role="alert"
+              className="anim-rise mt-4 border-l-2 border-primary pl-4 text-sm text-unmet-ink"
+            >
+              {error}
+            </p>
+          )}
 
           <fieldset className="mt-10 grid gap-5 sm:grid-cols-2">
             <legend className="meta mb-4 text-muted-foreground">Optional details</legend>
@@ -232,15 +292,26 @@ function NewTender() {
             ))}
             <label className="block text-sm">
               <span className="text-muted-foreground">Submission deadline</span>
-              <input type="date" value={meta.deadline} onChange={(e) => setMeta({ ...meta, deadline: e.target.value })} className="mt-1.5 h-11 w-full border-b border-input bg-transparent outline-none focus:border-primary" />
+              <input
+                type="date"
+                value={meta.deadline}
+                onChange={(e) => setMeta({ ...meta, deadline: e.target.value })}
+                className="mt-1.5 h-11 w-full border-b border-input bg-transparent outline-none focus:border-primary"
+              />
             </label>
           </fieldset>
 
           <div className="mt-10 flex flex-wrap items-center gap-6">
-            <Button onClick={extract} disabled={!file || busy || !API_BASE} title={!API_BASE ? "Extraction service not connected" : undefined}>
+            <Button
+              onClick={extract}
+              disabled={!file || busy || !API_BASE}
+              title={!API_BASE ? "Extraction service not connected" : undefined}
+            >
               Extract requirements ↗
             </Button>
-            <Button variant="ghost" onClick={openDemo} disabled={busy}>Open illustrative demo instead</Button>
+            <Button variant="ghost" onClick={openDemo} disabled={busy}>
+              Open illustrative demo instead
+            </Button>
           </div>
         </div>
       </div>

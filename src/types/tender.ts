@@ -110,7 +110,10 @@ export interface Assessment {
   requirements: TenderRequirement[];
   pageCount?: number | undefined;
   analyzedPageCount?: number | undefined;
+  processedPageCount?: number | undefined;
+  attemptedPageCount?: number | undefined;
   unprocessedPages?: number[] | undefined;
+  ocrPageLimit?: number | undefined;
   warnings?: string[] | undefined;
   extractionStatus?: "success" | "partial_ocr" | undefined;
   createdAt: string;
@@ -185,7 +188,10 @@ export interface TenderAnalysisResult {
   filename: string;
   pageCount: number;
   analyzedPageCount: number;
+  processedPageCount: number;
+  attemptedPageCount: number;
   unprocessedPages?: number[];
+  ocrPageLimit?: number;
   extractionStatus: "success" | "partial_ocr";
   ocrStatus?: "not_needed" | "completed" | "partial" | "failed";
   ocrConfidenceAvg?: number | null;
